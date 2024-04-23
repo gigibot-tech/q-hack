@@ -64,4 +64,5 @@ async def extract_text_from_pdf():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)
+    import os
+    uvicorn.run(app, host="localhost", port=int(os.environ.get('PORT', 8080)))
