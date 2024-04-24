@@ -4,6 +4,8 @@ import requests
 import PyPDF2
 import io
 from fpdf import FPDF
+#from tempfile import NamedTemporaryFile
+import os
 
 app = FastAPI()
 
@@ -20,6 +22,73 @@ async def upload_form():
         </body>
     </html>
     """
+    
+def default_pdf():
+    # Function to generate a default PDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Default PDF due to error in processing.", ln=True, align='C')
+    
+    pdf_buffer = io.BytesIO()
+    pdf.output(pdf_buffer)
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
+@app.post("/extract-text/")
+async def extract_text_from_pdf(pdf_file: UploadFile = File(...)):
+    if not pdf_file.content_type == "application/pdf":
+        # Return the default PDF if the uploaded file is not a PDF
+        return StreamingResponse(default_pdf(), media_type="application/pdf")
+
+ # Generate a temporary file path
+    temp_dir = os.path.join(os.getcwd(), "temp_files")
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_file_path = os.path.join(temp_dir, "temp_pdf.pdf")
+
+    try:
+        # Write the PDF to a temporary file
+        with open(temp_file_path, "wb") as temp_file:
+            contents = await pdf_file.read()
+            temp_file.write(contents)
+            
+        reader = PyPDF2.PdfReader(temp_file_path)#io.BytesIO(contents))
+        if reader.pages:
+            first_page = reader.pages[0]
+            extracted_text = first_page.extract_text()
+
+            # Cleanup: remove the temporary file
+            os.remove(temp_file_path)
+
+            if extracted_text:
+                return {"extracted_text": extracted_text}
+            else:
+                # Return the default PDF if no text is extracted
+                return StreamingResponse(default_pdf(), media_type="application/pdf")
+        else:
+            # Cleanup: remove the temporary file
+            os.remove(temp_file_path)
+            raise ValueError("No pages found in PDF.")
+    except Exception as e:
+        # Cleanup in case of failure
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        print(f"Failed to process PDF: {str(e)}")
+
+        if extracted_text:
+            return {"extracted_text": extracted_text}
+        else:
+            # Return the default PDF if no text is extracted
+            return StreamingResponse(default_pdf(), media_type="application/pdf")
+
+    except Exception as e:
+        # Log the exception, can be replaced with any logging library
+        print(str(e))
+        # Return the default PDF in case of any error during PDF processing
+        return StreamingResponse(default_pdf(), media_type="application/pdf")
+
+
+
 @app.get("/generate-pdf/")
 def generate_pdf():
     # Create a PDF object
@@ -64,5 +133,4 @@ async def extract_text_from_pdf():
 
 if __name__ == "__main__":
     import uvicorn
-    import os
     uvicorn.run(app, host="localhost", port=int(os.environ.get('PORT', 8080)))

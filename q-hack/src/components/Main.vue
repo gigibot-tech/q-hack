@@ -165,7 +165,7 @@
     },
     apiRequest(){
       axios
-      .get('127.0.0.1:8000/text/')
+      .get('127.0.0.1:8080/text/')
       //.post('127.0.0.1:8000/extract-text/', {pdf: this.pdfData})
       .then(response => console.log(response))
       //.then(response => (this.pdfData2 = response.data))
